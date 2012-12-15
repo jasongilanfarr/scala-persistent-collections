@@ -172,7 +172,8 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
    * <b>The maps must have the same capacity.</b>
    *
    * @return if the maps were merged, a new map with all of the entries and None for the second value of the tuple
-   * @return if the maps were simply rebalanced, two new maps with even division across them
+   * @return if the maps were simply rebalanced, two new maps with even division across them and the lesser keyed
+   * map first.
    * @return (this, Some(other)) if this map was at least half-full.
    */
   def rebalanceWith(other: FixedMap[A, B]): (FixedMap[A, B], Option[FixedMap[A, B]]) = {
@@ -185,9 +186,15 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
       merged ++= this
       (merged, None)
     } else {
-      val (newThis, newOther) = other.split(other.size / 2 - 1)
-      newThis ++= this
-      (newThis, Some(newOther))
+      if (at(0)._1 < other.at(0)._1) {
+        val (newThis, newOther) = other.split(other.size / 2 - 1)
+        newThis ++= this
+        (newThis, Some(newOther))
+      } else {
+        val (newOther, newThis) = other.split(other.size / 2 + 1)
+        newThis ++= this
+        (newOther, Some(newThis))
+      }
     }
 
   }

@@ -119,7 +119,7 @@ class FixedMapSpec extends WordSpec with ShouldMatchers {
         left should equal((fm ++ nearlyEmpty))
       }
     }
-    "be able to rebalance with a nearly half-full fixed map" in {
+    "be able to rebalance with a nearly half-full fixed map of higher value" in {
       val left = FixedMap[Int, Int](size = 6)((2 -> 2), (3 -> 3))
       val right = FixedMap[Int, Int](size = 6)((4 -> 4), (5 -> 5), (6 -> 6), (7 -> 7))
       val (newLeft, newRight) = left.rebalanceWith(right)
@@ -127,7 +127,15 @@ class FixedMapSpec extends WordSpec with ShouldMatchers {
       newLeft.keySet should equal(Set(2, 3, 4))
       newRight should be('defined)
       newRight.get.keySet should equal(Set(5, 6, 7))
+    }
+    "be able to rebalance with a half-full fixed map of lower value" in {
+      val left = FixedMap[Int, Int](size = 6)((2 -> 2), (3 -> 3), (4 -> 4), (5 -> 5), (6, 6))
+      val right = FixedMap[Int, Int](size = 6)((7 -> 7))
+      val (newLeft, newRight) = right.rebalanceWith(left)
 
+      newLeft.keySet should equal(Set(2, 3, 4))
+      newRight should be('defined)
+      newRight.get.keySet should equal(Set(5, 6, 7))
     }
     "when full" should {
       val values = List(1, 3, 5, 7, 9)
