@@ -56,22 +56,29 @@ class BPlusTreeSpec extends WordSpec with ShouldMatchers {
     }
 
     "given a large amount of data in random order" should {
-      "iterate the data in exactly sorted order with no duplicates" in {
-        // TODO use property testing.
-        // large list of random values matched to themselves.
-        val seq = Random.shuffle(0.until(5000))
-        val values = seq.map { x => (x, x) }
-        val root = BPlusTree(values: _*)
+      // large list of random values matched to themselves.
+      val seq = Random.shuffle(0.until(100000))
+      val values = seq.map { x => (x, x) }
+      val root = BPlusTree(values: _*)
 
-        val rootSequence = root.toSeq.map(_._1)
+      val rootSequence = root.toSeq.map(_._1)
+      "iterate the data in exactly sorted order" in {
+        rootSequence should equal(rootSequence.sortWith(_ < _))
 
+      }
+      "not have any duplicates" in {
         val duplicateEntries = rootSequence.groupBy(identity)
           .filter(x => x._2.size > 1)
           .map(_._1).toSeq.sortWith(_ < _)
 
         duplicateEntries should be('empty)
-        rootSequence should equal(rootSequence.sortWith(_ < _))
+      }
+      "contain all the entries inserted" in {
         seq.filter(!root.contains(_)) should be('empty)
+      }
+      "have equidistant paths to all children" in {
+        val pathLengths = seq.map(x => (x, root.findChildPath(root, x).size))
+        pathLengths.groupBy(_._2).keys.size should equal(1)
       }
     }
 
