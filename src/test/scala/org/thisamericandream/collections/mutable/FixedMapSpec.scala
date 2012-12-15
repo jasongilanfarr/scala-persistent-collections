@@ -22,7 +22,7 @@ class FixedMapSpec extends WordSpec with ShouldMatchers {
     }
     "partially full" should {
       val values = Seq(3, 1, 5)
-      val fm = FixedMap[Int, Int](size = values.size + 2)(values.map(x => (x, x)): _*)
+      val fm = FixedMap[Int, Int](size = values.size * 2)(values.map(x => (x, x)): _*)
 
       "not be empty" in {
         values should not be ('empty)
@@ -51,7 +51,7 @@ class FixedMapSpec extends WordSpec with ShouldMatchers {
         clone(0) should equal(0)
         clone.at(0) should equal(0, 0)
         clone.size should equal(4)
-        clone.array.size should equal(values.size + 2)
+        clone.array.size should equal(fm.capacity)
         clone.contains(0) should be(true)
         values.filter(x => !clone.contains(x)) should be('empty)
       }
@@ -104,6 +104,30 @@ class FixedMapSpec extends WordSpec with ShouldMatchers {
         clone -= 1
         clone.size should equal(oldSize - 1)
       }
+      "be able to split in the middle" in {
+        val split = fm.split(fm.size / 2)
+        val defaultSplit = fm.splitAt(fm.size / 2)
+        // FixedMap.split is covariant, while splitAt(index) is invariant and is
+        // defined in GenTraversableLike
+        split should equal(defaultSplit)
+      }
+      "be able to merge with a nearly empty fixed map" in {
+        val nearlyEmpty = FixedMap[Int, Int](size = fm.capacity)((2, 2))
+        val (left, right) = nearlyEmpty.rebalanceWith(fm)
+        right should be(None)
+
+        left should equal((fm ++ nearlyEmpty))
+      }
+    }
+    "be able to rebalance with a nearly half-full fixed map" in {
+      val left = FixedMap[Int, Int](size = 6)((2 -> 2), (3 -> 3))
+      val right = FixedMap[Int, Int](size = 6)((4 -> 4), (5 -> 5), (6 -> 6), (7 -> 7))
+      val (newLeft, newRight) = left.rebalanceWith(right)
+
+      newLeft.keySet should equal(Set(2, 3, 4))
+      newRight should be('defined)
+      newRight.get.keySet should equal(Set(5, 6, 7))
+
     }
     "when full" should {
       val values = List(1, 3, 5, 7, 9)
@@ -133,6 +157,7 @@ class FixedMapSpec extends WordSpec with ShouldMatchers {
         clone(3) should be(5)
         clone.array should equal(Array((1, 1), (3, 5), (5, 5), (7, 7), (9, 9)))
       }
+
     }
   }
 }
