@@ -61,7 +61,7 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
    * The key of this node is the key of its first child
    *
    */
-  def key: A = if (children.at(0) == null) null.asInstanceOf[A] else children.at(0)._1
+  final def key: A = if (children.at(0) == null) null.asInstanceOf[A] else children.at(0)._1
 
   /** Number of active keys in the node */
   private[collections] final def numActiveKeys: Int = children.size
@@ -73,17 +73,17 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
   protected[collections] def children = newMap[Child]
 
   /* Begin: Scala Map[A, B] */
-  def get(key: A): Option[B] = {
+  final def get(key: A): Option[B] = {
     val leaf = findChildPath(this, key).head.asInstanceOf[BPlusTreeLeaf[A, B]]
     leaf.children.get(key)
   }
 
   override def empty: BPlusTree[A, B] = BPlusTreeLeaf(newMap[B])
 
-  def +[B1 >: B](kv: (A, B1)) = insert(kv._1, kv._2)
-  def -(k: A) = delete(k)
+  final def +[B1 >: B](kv: (A, B1)) = insert(kv._1, kv._2)
+  final def -(k: A) = delete(k)
 
-  def iterator: Iterator[(A, B)] = new BPlusIterator(this)
+  final def iterator: Iterator[(A, B)] = new BPlusIterator(this)
   /* End: Scala Map[A, B] */
 
   /**
@@ -95,7 +95,7 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
    * to call these methods on the children directly?
    * Would it actually be much different?
    */
-  def insert[B1 >: B](k: A, v: B1): BPlusTree[A, B1] = {
+  final def insert[B1 >: B](k: A, v: B1): BPlusTree[A, B1] = {
     // path is leaf -> parent *
     val path = findChildPath(this, k)
 
@@ -209,7 +209,7 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
    *
    * @return The path to the leaf node from <b>this</b> where the key belongs.
    */
-  private def findChildPath[B1 >: B](tree: BPlusTree[A, B1], key: A): List[BPlusTree[A, B1]] = {
+  private[collections] final def findChildPath[B1 >: B](tree: BPlusTree[A, B1], key: A): List[BPlusTree[A, B1]] = {
     @tailrec def findChild[B1 >: B](tree: BPlusTree[A, B1], key: A, path: List[BPlusTree[A, B1]]): List[BPlusTree[A, B1]] = tree match {
       case leaf: BPlusTreeLeaf[_, _] =>
         leaf :: path
