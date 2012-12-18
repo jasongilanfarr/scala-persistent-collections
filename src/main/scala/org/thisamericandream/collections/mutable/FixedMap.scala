@@ -152,11 +152,11 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
    * Split the map at the specified index into two covariant fixed maps.
    */
   def split[B1 >: B](index: Int): (FixedMap[A, B1], FixedMap[A, B1]) = {
-    assume(index != 0 && index < size0 - 1)
     val (left, right) = (new FixedMap[A, B1](capacity), new FixedMap[A, B1](capacity))
+
     var i = 0
-    while (i < size) {
-      (if (i < index) left else right) += array(i)
+    foreach { x =>
+      (if (i < index) left else right) += x
       i += 1
     }
 
