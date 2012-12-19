@@ -309,9 +309,9 @@ object BPlusTree {
    *
    * @return The newly created path from oldChild through root. All nodes on the path are recreated.
    */
-  @tailrec def createTree[A <% Ordered[A], B, B1 >: B](path: List[BPlusTree[A, B1]],
-                                                       oldChild: BPlusTree[A, B],
-                                                       newChild: BPlusTree[A, B1]): BPlusTree[A, B1] = path match {
+  @tailrec private def createTree[A <% Ordered[A], B, B1 >: B](path: List[BPlusTree[A, B1]],
+                                                               oldChild: BPlusTree[A, B],
+                                                               newChild: BPlusTree[A, B1]): BPlusTree[A, B1] = path match {
     case Nil => newChild
     case (internal: BPlusTreeInternal[A, B]) :: tail =>
       val key = newChild match {
@@ -623,9 +623,9 @@ object BPlusTree {
    * @param right The right sibling.
    * @param minimumSize The minimum size of the array.
    */
-  def rebalance[A <% Ordered[A], B](left: Option[FixedMap[A, B]],
-                                    middle: FixedMap[A, B],
-                                    right: Option[FixedMap[A, B]], minimumSize: Int): Option[(Option[FixedMap[A, B]], FixedMap[A, B], Option[FixedMap[A, B]])] = {
+  private def rebalance[A <% Ordered[A], B](left: Option[FixedMap[A, B]],
+                                            middle: FixedMap[A, B],
+                                            right: Option[FixedMap[A, B]], minimumSize: Int): Option[(Option[FixedMap[A, B]], FixedMap[A, B], Option[FixedMap[A, B]])] = {
 
     assume(left.isDefined || right.isDefined)
 
@@ -698,5 +698,5 @@ object BPlusTree {
     }
   }
 
-  def newMap[A <% Ordered[A], B](size: Int): FixedMap[A, B] = new FixedMap[A, B](size)
+  private def newMap[A <% Ordered[A], B](size: Int): FixedMap[A, B] = new FixedMap[A, B](size)
 }

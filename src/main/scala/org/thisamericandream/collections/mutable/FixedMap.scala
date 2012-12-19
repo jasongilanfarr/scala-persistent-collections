@@ -135,13 +135,13 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
    * Run a binary search through the array for a given key.
    *
    * @param k The key to search for
-   * @return Left(index) if the key is not in the map. The index reflects the position
-   *    in the array the key would be found.
-   * @return Right(index) if the key is in the map. The index reflects the position
-   *    in the array the key was found.
+   * @return Left(index) if the key is not in the map or Right(index) if the key is in the map.
+   * The index reflects the position in the array the key should be located.
    */
   def indexOfKey(k: A): Either[Int, Int] = binarySearch(k)
+
   /** @return the key at the specified index, if any */
+
   def at(index: Int) = array(index)
   /**
    * Update the specified index with a new key value pair.
