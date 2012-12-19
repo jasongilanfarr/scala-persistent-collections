@@ -40,39 +40,38 @@ class BPlusTreeSpec extends WordSpec with ShouldMatchers with BPlusTreeBehaviors
       val seq = Random.shuffle(0.until(33))
 
       "given " + seq + " in a small, odd sized tree" should {
-        behave like nonEmptyTree(seq, 3)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 3)
       }
       "given " + seq + " in a small, evenly sized tree" should {
-        behave like nonEmptyTree(seq, 4)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 4)
       }
       "given " + seq + " in a medium, oddly sized tree" should {
-        behave like nonEmptyTree(seq, 9)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 9)
       }
       "given " + seq + " in a medium, evenly sized tree" should {
-        behave like nonEmptyTree(seq, 16)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 16)
       }
     }
-
     "given a large amount of data in a random order" should {
       val seq = Random.shuffle(0.until(RANDOM_SIZE))
 
       "in a small, odd sized tree" should {
-        behave like nonEmptyTree(seq, 3)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 3)
       }
       "in a small, evenly sized tree" should {
-        behave like nonEmptyTree(seq, 4)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 4)
       }
       "in a medium, oddly sized tree" should {
-        behave like nonEmptyTree(seq, 97)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 97)
       }
       "in a medium, evenly sized tree" should {
-        behave like nonEmptyTree(seq, 100)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 100)
       }
       "in a large, oddly sized tree" should {
-        behave like nonEmptyTree(seq, 511)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 511)
       }
       "in a large, evenly sized tree" should {
-        behave like nonEmptyTree(seq, 512)
+        behave like nonEmptyTreeWithRandomRemoval(seq, 512)
       }
     }
   }
@@ -116,4 +115,37 @@ trait BPlusTreeBehaviors extends ShouldMatchers {
       }
     }
   }
+
+  def afterRemoval[A <% Ordered[A]](sequence: => Seq[A], removed: => Seq[A], nodeSize: Int, tree: BPlusTree[A, A]) = {
+    "no longer contain the entries" in {
+      removed.filter(tree.contains(_)) should be('empty)
+    }
+
+    "contain all the other entries" in {
+      sequence.view.filterNot(removed.contains(_)).filterNot(tree.contains(_)) should be('empty)
+    }
+
+    behave like nonEmptyTree(sequence.filterNot(removed.contains(_)), nodeSize, Some(tree))
+  }
+
+  def nonEmptyTreeWithRandomRemoval[A <% Ordered[A]](sequence: => Seq[A], nodeSize: Int) {
+    val tree = BPlusTree[A, A](nodeSize)((sequence.map(x => (x, x)): _*))
+
+    behave like nonEmptyTree(sequence, nodeSize, Some(tree))
+
+    "after removing a single element" should {
+      val removeEntry = sequence(Random.nextInt(sequence.size))
+
+      val removedTree = tree - removeEntry
+      behave like afterRemoval(sequence, Seq(removeEntry), nodeSize, removedTree)
+    }
+    "after removing a lot of elements" should {
+      val (index0, index1) = (Random.nextInt(sequence.size - 1), Random.nextInt(sequence.size - 1))
+      val removedEntries = Random.shuffle(sequence.slice(math.min(index0, index1), math.max(index0, index1)))
+
+      val removedTree = tree -- removedEntries
+      behave like afterRemoval(sequence, removedEntries, nodeSize, removedTree)
+    }
+  }
+
 }

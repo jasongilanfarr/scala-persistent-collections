@@ -150,6 +150,8 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
 
   /**
    * Split the map at the specified index into two covariant fixed maps.
+   *
+   * TODO: Use System.arraycopy?
    */
   def split[B1 >: B](index: Int): (FixedMap[A, B1], FixedMap[A, B1]) = {
     val (left, right) = (new FixedMap[A, B1](capacity), new FixedMap[A, B1](capacity))
@@ -163,41 +165,6 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
     (left, right)
   }
 
-  /**
-   * Rebalance this map with another map such that either
-   *  this map is merged into the other map (if there is sufficient capacity)
-   *  or this map will steal up to half the other map's first entries so that
-   *  this map will remain at least half-full.
-   *
-   * <b>The maps must have the same capacity.</b>
-   *
-   * @return if the maps were merged, a new map with all of the entries and None for the second value of the tuple
-   * @return if the maps were simply rebalanced, two new maps with even division across them and the lesser keyed
-   * map first.
-   * @return (this, Some(other)) if this map was at least half-full.
-   */
-  def rebalanceWith(other: FixedMap[A, B]): (FixedMap[A, B], Option[FixedMap[A, B]]) = {
-    assume(capacity == other.capacity)
-    if (size >= capacity / 2) {
-      (this, Some(other))
-    } else if (other.size <= other.capacity / 2 && size + other.size <= other.capacity) {
-      val merged = new FixedMap[A, B](other.capacity)
-      merged ++= other
-      merged ++= this
-      (merged, None)
-    } else {
-      if (at(0)._1 < other.at(0)._1) {
-        val (newThis, newOther) = other.split(other.size / 2 - 1)
-        newThis ++= this
-        (newThis, Some(newOther))
-      } else {
-        val (newOther, newThis) = other.split(other.size / 2 + 1)
-        newThis ++= this
-        (newOther, Some(newThis))
-      }
-    }
-
-  }
   override def toString: String = {
     array.mkString("(", ", ", ")")
   }

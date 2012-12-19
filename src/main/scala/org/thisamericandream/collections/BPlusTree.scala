@@ -38,7 +38,6 @@ import org.thisamericandream.collections.mutable.FixedMap
  *
  * <p>
  * TODO: Implement Bulk-Insert
- * TODO: Implement Delete
  * TODO: Attempt to remove as much of the type checking warnings from the pattern matching as possible.
  * TODO: Make the leaf and internal nodes truly replacable with alternate implementations (for example,
  *  a Internal node could want Loadable[BPlusTree[Key, Value]] as its children to implement
@@ -312,8 +311,9 @@ object BPlusTree {
    */
   @tailrec def createTree[A <% Ordered[A], B, B1 >: B](path: List[BPlusTree[A, B1]],
                                                        oldChild: BPlusTree[A, B],
-                                                       newChild: BPlusTree[A, B1]): BPlusTree[A, B1] = path.head match {
-    case internal: BPlusTreeInternal[A, B] =>
+                                                       newChild: BPlusTree[A, B1]): BPlusTree[A, B1] = path match {
+    case Nil => newChild
+    case (internal: BPlusTreeInternal[A, B]) :: tail =>
       val key = newChild match {
         case leaf: BPlusTreeLeaf[_, _] => leaf.children.head._1
         case internal: BPlusTreeInternal[_, _] => internal.children.head._1
@@ -487,17 +487,215 @@ object BPlusTree {
   }
 
   /**
+   * Delete a given key from the tree.
+   *
+   * @param root The root of the tree.
+   * @param key The key to remove.
+   *
+   * @return The new tree with the key removed.
+   *
+   * <p>
    * Start at root, find leaf L where entry belongs.
    * Remove the entry.
-   * If L is at least half-full, done!
+   * If L is at least half-full, done.
    * If L has fewer entries than it should,
-   * Try to re-distribute, borrowing from sibling (adjacent node with same parent as L).
-   * If re-distribution fails, merge L and sibling.
+   * Try to re-distribute, borrowing from siblings (adjacent node with same parent as L).
+   * If re-distribution fails, merge L and siblings.
    * If merge occurred, must delete entry (pointing to L or sibling) from parent of L.
    * Merge could propagate to root, decreasing height.
+   * </p>
    */
   private def delete[A <% Ordered[A], B](root: BPlusTree[A, B], key: A): BPlusTree[A, B] = {
-    throw new UnsupportedOperationException
+    val path = findChildPath(root, key)
+    val leaf = path.head.asInstanceOf[BPlusTreeLeaf[A, B]]
+    if (!leaf.children.contains(key)) {
+      root
+    } else if (leaf.numActiveKeys - 1 >= leaf.minimumSize || path.tail.isEmpty) {
+      createTree(path.tail, path.head, BPlusTreeLeaf[A, B](leaf.children - key))
+    } else {
+      val parent = path.tail.head.asInstanceOf[BPlusTreeInternal[A, B]]
+      val (leftSibling, rightSibling) =
+        getSiblings(leaf, parent).map(_.asInstanceOf[BPlusTreeLeaf[A, B]])
+
+      val rebalanced = rebalance(leftSibling.map(_.children), leaf.children - key, rightSibling.map(_.children), leaf.minimumSize)
+
+      val newParent = parent.children - leaf.key
+      leftSibling.foreach(newParent -= _.key)
+      rightSibling.foreach(newParent -= _.key)
+
+      // rebalance worked.
+      if (rebalanced.isDefined) {
+        // TODO: newLeft and newRight might be the same children as the originals.
+        val (newLeft, newMiddle, newRight) = rebalanced.get
+
+        newLeft.map(BPlusTreeLeaf[A, B](_)).foreach(x => newParent += (x.key -> x))
+        newRight.map(BPlusTreeLeaf[A, B](_)).foreach(x => newParent += (x.key -> x))
+        newParent += (newMiddle.at(0)._1 -> BPlusTreeLeaf[A, B](newMiddle))
+
+        rebalanceTree(path.tail, newParent)
+      } else {
+        // rebalance failed, so we need to merge the leaf and its siblings.
+        val (newLeft, newRight) = merge(leftSibling.map(_.children), leaf.children - key, rightSibling.map(_.children), leaf.minimumSize)
+        newParent += (newLeft.at(0)._1 -> BPlusTreeLeaf[A, B](newLeft))
+
+        newRight.map(BPlusTreeLeaf[A, B](_)).foreach(x => newParent += (x.key -> x))
+
+        rebalanceTree(path.tail, newParent)
+      }
+    }
+  }
+
+  /**
+   * Rebalance the internal nodes going up the tree if necessary. Basically the same
+   * as delete; however, this is made only for internal nodes due to the types of the children.
+   *
+   * @param path The path up to the root.
+   * @param children The new children of the path's head.
+   *
+   * @return the rebalanced tree.
+   */
+  @tailrec private def rebalanceTree[A <% Ordered[A], B](path: List[BPlusTree[A, B]], children: FixedMap[A, BPlusTree[A, B]]): BPlusTree[A, B] = {
+    if (path.isEmpty || path.tail.isEmpty) {
+      if (children.size == 1) {
+        // root collapsed.
+        children.at(0)._2
+      } else {
+        BPlusTreeInternal[A, B](children)
+      }
+    } else if (children.size >= path.head.minimumSize) {
+      createTree(path.tail, path.head, BPlusTreeInternal[A, B](children))
+    } else {
+      val internal = path.head.asInstanceOf[BPlusTreeInternal[A, B]]
+      val parent = path.tail.head.asInstanceOf[BPlusTreeInternal[A, B]]
+
+      val (leftSibling, rightSibling) =
+        getSiblings(internal, parent).map(_.asInstanceOf[BPlusTreeInternal[A, B]])
+
+      val rebalanced = rebalance(leftSibling.map(_.children), children, rightSibling.map(_.children), parent.minimumSize)
+      val newParent = parent.children - internal.key
+      leftSibling.foreach(newParent -= _.key)
+      rightSibling.foreach(newParent -= _.key)
+
+      if (rebalanced.isDefined) {
+        val (newLeft, newMiddle, newRight) = rebalanced.get
+
+        newLeft.map(BPlusTreeInternal[A, B](_)).foreach(x => newParent += (x.key -> x))
+        newRight.map(BPlusTreeInternal[A, B](_)).foreach(x => newParent += (x.key -> x))
+        newParent += (newMiddle.at(0)._1 -> BPlusTreeInternal[A, B](newMiddle))
+
+        rebalanceTree(path.tail, newParent)
+      } else {
+        val (newLeft, newRight) = merge(leftSibling.map(_.children), children, rightSibling.map(_.children), parent.minimumSize)
+        newParent += (newLeft.at(0)._1 -> BPlusTreeInternal[A, B](newLeft))
+        newRight.map(BPlusTreeInternal[A, B](_)).foreach(x => newParent += (x.key -> x))
+
+        rebalanceTree(path.tail, newParent)
+      }
+    }
+  }
+
+  /**
+   * Get the siblings of the given node.
+   * @param node The node to find the siblings of
+   * @param parent The nodes immediate parent.
+   * @return The right and left siblings of the given node in the immediate parent.
+   */
+  private def getSiblings[A <% Ordered[A]](node: BPlusTree[A, _],
+                                           parent: BPlusTreeInternal[A, _]): (Option[BPlusTree[A, _]], Option[BPlusTree[A, _]]) = {
+
+    val nodeIndex = parent.children.indexOfKey(node.key).right.get
+
+    if (nodeIndex > 0 && nodeIndex < parent.numActiveKeys - 1) {
+      (Some(parent.children.at(nodeIndex - 1)._2), Some(parent.children.at(nodeIndex + 1)._2))
+    } else if (nodeIndex == 0) {
+      (None, Some(parent.children.at(nodeIndex + 1)._2))
+    } else {
+      (Some(parent.children.at(nodeIndex - 1)._2), None)
+    }
+  }
+
+  /**
+   * Rebalance the middle children with their left and right siblings such that
+   * the siblings will maintain at least their minimum size.
+   *
+   * @param left The left sibling.
+   * @param middle The node needing rebalancing.
+   * @param right The right sibling.
+   * @param minimumSize The minimum size of the array.
+   */
+  def rebalance[A <% Ordered[A], B](left: Option[FixedMap[A, B]],
+                                    middle: FixedMap[A, B],
+                                    right: Option[FixedMap[A, B]], minimumSize: Int): Option[(Option[FixedMap[A, B]], FixedMap[A, B], Option[FixedMap[A, B]])] = {
+
+    assume(left.isDefined || right.isDefined)
+
+    // TODO detect if rebalancing is possible such that middle will have at least minimumSize elements.
+    if (left.map(_.size - 1).getOrElse(0) < minimumSize && right.map(_.size - 1).getOrElse(0) < minimumSize) {
+      None
+    } else {
+      val (newLeft, newMiddleLeft) = left.map { l =>
+        if (l.size - 1 >= minimumSize) {
+          val (newLeft, newMiddle) = l.split(minimumSize)
+          newMiddle ++= middle
+          (Some(newLeft), newMiddle)
+        } else {
+          (Some(l), middle)
+        }
+      }.getOrElse((None, middle))
+
+      if (newMiddleLeft.size >= minimumSize) {
+        Some((newLeft, newMiddleLeft, right))
+      } else {
+        val (newMiddle, newRight) = right.map { r =>
+          if (r.size - 1 >= minimumSize) {
+            val (m, newRight) = r.split(r.size - minimumSize)
+            m ++= newMiddleLeft
+            (m, Some(newRight))
+          } else {
+            (newMiddleLeft, Some(r))
+          }
+        }.getOrElse((newMiddleLeft, None))
+
+        // TODO can we detect this earlier?
+        if (newMiddle.size >= minimumSize) {
+          Some((newLeft, newMiddle, newRight))
+        } else {
+          None
+        }
+      }
+    }
+  }
+
+  /**
+   * Merge up to three maps into 1 or 2 maps such that each map is of the minimumSize.
+   *
+   * @param left The left sibling
+   * @param middle The node that needs to be merged.
+   * @param right The right sibling
+   * @param minimumSize The minimumSize of the maps
+   *
+   * @return The merged map and a second map if the merge would have overflowed.
+   */
+  private def merge[A <% Ordered[A], B](left: Option[FixedMap[A, B]],
+                                        middle: FixedMap[A, B],
+                                        right: Option[FixedMap[A, B]],
+                                        minimumSize: Int): (FixedMap[A, B], Option[FixedMap[A, B]]) = {
+
+    if (left.map(_.size).getOrElse(0) + middle.size + right.map(_.size).getOrElse(0) <= middle.capacity) {
+      val elements = middle.clone
+      left.foreach(elements ++= _)
+      right.foreach(elements ++= _)
+      (elements, None)
+    } else {
+      val (l, r) = (newMap[A, B](middle.capacity), newMap[A, B](middle.capacity))
+
+      left.foreach(l ++= _)
+      val leftRemaining = minimumSize - l.size
+      l ++= middle.take(leftRemaining)
+      r ++= middle.drop(leftRemaining)
+      right.foreach(r ++= _)
+      (l, Some(r))
+    }
   }
 
   def newMap[A <% Ordered[A], B](size: Int): FixedMap[A, B] = new FixedMap[A, B](size)
