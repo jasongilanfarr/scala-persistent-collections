@@ -37,7 +37,7 @@ class BPlusTreeSpec extends WordSpec with ShouldMatchers with BPlusTreeBehaviors
       "should contain the element" in { oneElement.get(1) should equal(Some(1)) }
     }
     "given a small amount of data in a random order" should {
-      val seq = Random.shuffle(0.until(33))
+      val seq = Random.shuffle(0.until(33).toList)
 
       "given " + seq + " in a small, odd sized tree" should {
         behave like nonEmptyTreeWithRandomRemoval(seq, 3)
@@ -53,7 +53,7 @@ class BPlusTreeSpec extends WordSpec with ShouldMatchers with BPlusTreeBehaviors
       }
     }
     "given a large amount of data in a random order" should {
-      val seq = Random.shuffle(0.until(RANDOM_SIZE))
+      val seq = Random.shuffle(0.until(RANDOM_SIZE).toList)
 
       "in a small, odd sized tree" should {
         behave like nonEmptyTreeWithRandomRemoval(seq, 3)

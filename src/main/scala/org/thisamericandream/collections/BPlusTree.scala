@@ -9,7 +9,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.MapBuilder
 import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom
-import scala.unchecked
 import org.thisamericandream.collections.mutable.FixedMap
 
 /**
@@ -238,7 +237,7 @@ object BPlusTree {
 
   def apply[A <% Ordered[A], B](size: Int)(kvs: (A, B)*): BPlusTree[A, B] = {
     // TODO use a bulk insert
-    empty(size) ++ kvs
+    new BPlusTreeLeaf[A, B](new FixedMap[A, B](size)) ++ kvs
   }
 
   def newBuilder[A <% Ordered[A], B](size: Int): Builder[(A, B), BPlusTree[A, B]] =
@@ -312,7 +311,6 @@ object BPlusTree {
   @tailrec private def createTree[A <% Ordered[A], B, B1 >: B](path: List[BPlusTree[A, B1]],
                                                                oldChild: BPlusTree[A, B],
                                                                newChild: BPlusTree[A, B1]): BPlusTree[A, B1] = path match {
-    case Nil => newChild
     case (internal: BPlusTreeInternal[A, B]) :: tail =>
       val key = newChild match {
         case leaf: BPlusTreeLeaf[_, _] => leaf.children.head._1
@@ -333,6 +331,8 @@ object BPlusTree {
       } else {
         createTree(path.tail, internal, insertedInternal)
       }
+    case _ =>
+      newChild
   }
 
   /**
@@ -371,7 +371,7 @@ object BPlusTree {
       newChildren(right.key) = right
 
       val newParent = BPlusTreeInternal[A, B1](newChildren)
-      if (path.head.eq(this) || path.isEmpty || path.tail.isEmpty) {
+      if (path.isEmpty || path.tail.isEmpty) {
         newParent
       } else {
         createTree(path.tail, path.head, newParent)
@@ -515,7 +515,7 @@ object BPlusTree {
     } else {
       val parent = path.tail.head.asInstanceOf[BPlusTreeInternal[A, B]]
       val (leftSibling, rightSibling) =
-        getSiblings(leaf, parent).map(_.asInstanceOf[BPlusTreeLeaf[A, B]])
+        getSiblings(leaf, parent).map(x => x.map(_.asInstanceOf[BPlusTreeLeaf[A, B]]))
 
       val rebalanced = rebalance(leftSibling.map(_.children), leaf.children - key, rightSibling.map(_.children), leaf.minimumSize)
 
@@ -569,7 +569,7 @@ object BPlusTree {
       val parent = path.tail.head.asInstanceOf[BPlusTreeInternal[A, B]]
 
       val (leftSibling, rightSibling) =
-        getSiblings(internal, parent).map(_.asInstanceOf[BPlusTreeInternal[A, B]])
+        getSiblings(internal, parent).map(x => x.map(_.asInstanceOf[BPlusTreeInternal[A, B]]))
 
       val rebalanced = rebalance(leftSibling.map(_.children), children, rightSibling.map(_.children), parent.minimumSize)
       val newParent = parent.children - internal.key
