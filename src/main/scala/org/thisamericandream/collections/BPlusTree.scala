@@ -46,17 +46,11 @@ import org.thisamericandream.collections.mutable.FixedMap
 abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A, B, BPlusTree[A, B]] {
   /** B or BPlusTree[A, B] */
   type Child
-
-  val nodeSize = children.capacity
-
   import BPlusTree._
-
-  /**
-   * The key of this node is the key of its first child
-   *
-   */
+  
+  final val nodeSize = children.capacity
+  /** The key of this node is the key of its first child */
   final def key: A = if (children.at(0) == null) null.asInstanceOf[A] else children.at(0)._1
-
   /** Number of active keys in the node */
   private[collections] final def numActiveKeys: Int = children.size
   /** True if and only if this node is a leaf */
@@ -66,12 +60,7 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
   /** Map from Key to the Child type */
   protected[collections] def children: FixedMap[A, Child] = newMap[A, Child](nodeSize)
   /** Minimum Size for a node in the tree */
-  private[collections] final def minimumSize: Int = {
-    if (isLeaf) {
-      nodeSize / 2
-    } else
-      nodeSize / 2 + nodeSize % 2
-  }
+  private[collections] final val minimumSize: Int = if (isLeaf) nodeSize / 2 else nodeSize / 2 + nodeSize % 2
 
   /* Begin: Scala Map[A, B] */
   final def get(key: A): Option[B] = {
