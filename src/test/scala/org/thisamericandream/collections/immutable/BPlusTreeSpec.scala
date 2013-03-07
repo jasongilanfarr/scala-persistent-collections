@@ -1,12 +1,13 @@
 /* ********************************************************
  * Copyright 2012 - Jason Gilanfarr - All Rights Reserved *
  * ********************************************************/
-package org.thisamericandream.collections
+package org.thisamericandream.collections.immutable
 
 import scala.collection.mutable.ArrayBuffer
 import org.scalatest.matchers.ShouldMatchers
 import scala.util.Random
 import org.scalatest.WordSpec
+import org.thisamericandream.collections.immutable.BPlusTree
 
 /**
  *

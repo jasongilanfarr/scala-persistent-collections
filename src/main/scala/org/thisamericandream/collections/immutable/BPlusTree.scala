@@ -1,11 +1,10 @@
 /* ********************************************************
  * Copyright 2012 - Jason Gilanfarr - All Rights Reserved *
  * ********************************************************/
-package org.thisamericandream.collections
+package org.thisamericandream.collections.immutable
 
 import scala.annotation.tailrec
 import scala.collection.immutable.MapLike
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.MapBuilder
 import scala.collection.mutable.Builder
 import scala.collection.generic.CanBuildFrom

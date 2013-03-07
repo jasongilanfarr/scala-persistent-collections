@@ -1,13 +1,13 @@
 /* ********************************************************
  * Copyright 2012 - Jason Gilanfarr - All Rights Reserved *
  * ********************************************************/
-package org.thisamericandream
+package org.thisamericandream.collections
 import language.implicitConversions
 
 /**
  *
  */
-package object collections {
+package object immutable {
   implicit class RichTuple2[A](t: (A, A)) extends Tuple2[A, A](t._1, t._2) {
     def map[R](f: A => R): (R, R) = (f(t._1), f(t._2))
     def foreach(f: A => Unit) = { map(f) }
