@@ -37,7 +37,6 @@ import org.thisamericandream.collections.mutable.FixedMap
  *
  * <p>
  * TODO: Implement Bulk-Insert
- * TODO: Attempt to remove as much of the type checking warnings from the pattern matching as possible.
  * TODO: Make the leaf and internal nodes truly replacable with alternate implementations (for example,
  *  a Internal node could want Loadable[BPlusTree[Key, Value]] as its children to implement
  *  lazy-loading.
@@ -46,16 +45,15 @@ import org.thisamericandream.collections.mutable.FixedMap
 abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A, B, BPlusTree[A, B]] {
   /** B or BPlusTree[A, B] */
   type Child
+  // node sizes < 3 are not supported
+  require(children.capacity >= 3, "Node Size must be >= 3")
 
   val nodeSize = children.capacity
 
   import BPlusTree._
 
-  /**
-   * The key of this node is the key of its first child
-   *
-   */
-  final def key: A = if (children.at(0) == null) null.asInstanceOf[A] else children.at(0)._1
+  /** The key of this node is the key of its first child */
+  final def key: A = if (!children.isDefinedAt(0)) null.asInstanceOf[A] else children.at(0)._1
 
   /** Number of active keys in the node */
   private[collections] final def numActiveKeys: Int = children.size
@@ -69,8 +67,9 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
   private[collections] final def minimumSize: Int = {
     if (isLeaf) {
       nodeSize / 2
-    } else
+    } else {
       nodeSize / 2 + nodeSize % 2
+    }
   }
 
   /* Begin: Scala Map[A, B] */
@@ -81,8 +80,8 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
 
   override def empty: BPlusTree[A, B] = BPlusTreeLeaf(newMap[A, B](nodeSize))
 
-  final def +[B1 >: B](kv: (A, B1)) = insert(this, kv._1, kv._2)
-  final def -(k: A) = delete(this, k)
+  final def +[B1 >: B](kv: (A, B1)) : BPlusTree[A, B1] = insert(this, kv._1, kv._2)
+  final def -(k: A) : BPlusTree[A, B] = delete(this, k)
 
   final def iterator: Iterator[(A, B)] = new BPlusIterator(this)
   /* End: Scala Map[A, B] */
@@ -172,37 +171,37 @@ private class BPlusIterator[A, B](val root: BPlusTree[A, B]) extends Iterator[(A
     true
   }
 
+  @tailrec private def nextValue(): (A, B) = stack.head match {
+    case leaf: BPlusTreeLeaf[A, B] =>
+      lastChild = leaf
+      currentIndex += 1
+      leaf.children.at(currentIndex - 1)
+    case internal: BPlusTreeInternal[A, B] =>
+      // need the next child in the internal node, if it exists, if it doesn't, then we need to go to the next
+      // internal node up the chain, if its there (stack.tail.head)
+      val nextChildIndex = internal.children.indexOfKey(lastChild.key) match {
+        case Right(index) => index + 1
+        case Left(index) =>
+          assume(index == 0)
+          index
+      }
+
+      if (nextChildIndex < internal.numActiveKeys) {
+        currentIndex = 0
+        val nextNode = internal.children.at(nextChildIndex)._2
+        stack = nextNode :: stack
+        nextValue()
+      } else {
+        lastChild = internal
+        stack = stack.tail
+        if (stack.isEmpty) {
+          throw new UnsupportedOperationException
+        }
+        nextValue()
+      }
+  }
+
   def next: (A, B) = {
-    @tailrec def nextValue(): (A, B) = stack.head match {
-      case leaf: BPlusTreeLeaf[A, B] =>
-        lastChild = leaf
-        currentIndex += 1
-        leaf.children.at(currentIndex - 1)
-      case internal: BPlusTreeInternal[A, B] =>
-        // need the next child in the internal node, if it exists, if it doesn't, then we need to go to the next
-        // internal node up the chain, if its there (stack.tail.head)
-        val nextChildIndex = internal.children.indexOfKey(lastChild.key) match {
-          case Right(index) => index + 1
-          case Left(index) =>
-            assume(index == 0)
-            index
-        }
-
-        if (nextChildIndex < internal.numActiveKeys) {
-          currentIndex = 0
-          val nextNode = internal.children.at(nextChildIndex)._2
-          stack = nextNode :: stack
-          nextValue()
-        } else {
-          lastChild = internal
-          stack = stack.tail
-          if (stack.isEmpty) {
-            throw new UnsupportedOperationException
-          }
-          nextValue()
-        }
-    }
-
     stack.head match {
       case leaf: BPlusTreeLeaf[A, B] =>
         lastChild = leaf
@@ -309,8 +308,8 @@ object BPlusTree {
    * @return The newly created path from oldChild through root. All nodes on the path are recreated.
    */
   @tailrec private def createTree[A <% Ordered[A], B, B1 >: B](path: List[BPlusTree[A, B1]],
-                                                               oldChild: BPlusTree[A, B],
-                                                               newChild: BPlusTree[A, B1]): BPlusTree[A, B1] = path match {
+    oldChild: BPlusTree[A, B],
+    newChild: BPlusTree[A, B1]): BPlusTree[A, B1] = path match {
     case (internal: BPlusTreeInternal[A, B]) :: tail =>
       val key = newChild match {
         case leaf: BPlusTreeLeaf[_, _] => leaf.children.head._1
@@ -327,7 +326,7 @@ object BPlusTree {
       val insertedInternal = BPlusTreeInternal[A, B1](newChildren)
 
       if (path.tail.isEmpty) {
-        return insertedInternal
+        insertedInternal
       } else {
         createTree(path.tail, internal, insertedInternal)
       }
@@ -346,9 +345,9 @@ object BPlusTree {
    * @returns the last split node and the remaining path
    */
   @tailrec private def splitPath[A <% Ordered[A], B, B1 >: B](path: List[BPlusTree[A, B]],
-                                                              originalNode: BPlusTree[A, B],
-                                                              left: BPlusTree[A, B1],
-                                                              right: BPlusTree[A, B1]): BPlusTree[A, B1] = {
+    originalNode: BPlusTree[A, B],
+    left: BPlusTree[A, B1],
+    right: BPlusTree[A, B1]): BPlusTree[A, B1] = {
 
     if (path.isEmpty) {
       val children = newMap[A, BPlusTree[A, B1]](originalNode.nodeSize)
@@ -446,8 +445,8 @@ object BPlusTree {
    * @return (left, right) of the node given.
    */
   private def split[A <% Ordered[A], B, B1 >: B](internal: BPlusTreeInternal[A, B],
-                                                 newLeft: BPlusTree[A, B1] = null,
-                                                 newRight: BPlusTree[A, B1] = null): (BPlusTreeInternal[A, B1], BPlusTreeInternal[A, B1]) = {
+    newLeft: BPlusTree[A, B1] = null,
+    newRight: BPlusTree[A, B1] = null): (BPlusTreeInternal[A, B1], BPlusTreeInternal[A, B1]) = {
 
     val midPoint = internal.minimumSize
     val midPointKey = internal.children.at(midPoint - 1)._1
@@ -601,7 +600,7 @@ object BPlusTree {
    * @return The right and left siblings of the given node in the immediate parent.
    */
   private def getSiblings[A <% Ordered[A]](node: BPlusTree[A, _],
-                                           parent: BPlusTreeInternal[A, _]): (Option[BPlusTree[A, _]], Option[BPlusTree[A, _]]) = {
+    parent: BPlusTreeInternal[A, _]): (Option[BPlusTree[A, _]], Option[BPlusTree[A, _]]) = {
 
     val nodeIndex = parent.children.indexOfKey(node.key).right.get
 
@@ -623,9 +622,11 @@ object BPlusTree {
    * @param right The right sibling.
    * @param minimumSize The minimum size of the array.
    */
-  private def rebalance[A <% Ordered[A], B](left: Option[FixedMap[A, B]],
-                                            middle: FixedMap[A, B],
-                                            right: Option[FixedMap[A, B]], minimumSize: Int): Option[(Option[FixedMap[A, B]], FixedMap[A, B], Option[FixedMap[A, B]])] = {
+  private def rebalance[A <% Ordered[A], B](
+    left: Option[FixedMap[A, B]],
+    middle: FixedMap[A, B],
+    right: Option[FixedMap[A, B]],
+    minimumSize: Int): Option[(Option[FixedMap[A, B]], FixedMap[A, B], Option[FixedMap[A, B]])] = {
 
     assume(left.isDefined || right.isDefined)
 
@@ -677,9 +678,9 @@ object BPlusTree {
    * @return The merged map and a second map if the merge would have overflowed.
    */
   private def merge[A <% Ordered[A], B](left: Option[FixedMap[A, B]],
-                                        middle: FixedMap[A, B],
-                                        right: Option[FixedMap[A, B]],
-                                        minimumSize: Int): (FixedMap[A, B], Option[FixedMap[A, B]]) = {
+    middle: FixedMap[A, B],
+    right: Option[FixedMap[A, B]],
+    minimumSize: Int): (FixedMap[A, B], Option[FixedMap[A, B]]) = {
 
     if (left.map(_.size).getOrElse(0) + middle.size + right.map(_.size).getOrElse(0) <= middle.capacity) {
       val elements = middle.clone
