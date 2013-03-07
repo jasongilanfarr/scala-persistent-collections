@@ -80,8 +80,8 @@ abstract class BPlusTree[A <% Ordered[A], +B]() extends Map[A, B] with MapLike[A
 
   override def empty: BPlusTree[A, B] = BPlusTreeLeaf(newMap[A, B](nodeSize))
 
-  final def +[B1 >: B](kv: (A, B1)) : BPlusTree[A, B1] = insert(this, kv._1, kv._2)
-  final def -(k: A) : BPlusTree[A, B] = delete(this, k)
+  final def +[B1 >: B](kv: (A, B1)): BPlusTree[A, B1] = insert(this, kv._1, kv._2)
+  final def -(k: A): BPlusTree[A, B] = delete(this, k)
 
   final def iterator: Iterator[(A, B)] = new BPlusIterator(this)
   /* End: Scala Map[A, B] */

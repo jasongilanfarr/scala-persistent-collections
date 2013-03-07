@@ -14,8 +14,8 @@ import scala.annotation.tailrec
  * @tparam B the type of values associated with the keys
  */
 class FixedMap[A <% Ordered[A], B](initialSize: Int)
-  extends Map[A, B]
-  with MapLike[A, B, FixedMap[A, B]] {
+    extends Map[A, B]
+    with MapLike[A, B, FixedMap[A, B]] {
 
   private[collections] val array = new Array[(A, B)](initialSize)
   /** The current size of the map */
@@ -143,10 +143,10 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
   def indexOfKey(k: A): Either[Int, Int] = binarySearch(k)
 
   /** @return the key-value pair at the specified index, if any */
-  def at(index: Int) : (A, B) = array(index)
+  def at(index: Int): (A, B) = array(index)
 
   /** @return true if the specified index is defined */
-  def isDefinedAt(index: Int) : Boolean = array(index) != null
+  def isDefinedAt(index: Int): Boolean = array(index) != null
 
   /**
    * Update the specified index with a new key value pair.
