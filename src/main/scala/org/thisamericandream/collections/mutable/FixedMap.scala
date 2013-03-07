@@ -14,8 +14,8 @@ import scala.annotation.tailrec
  * @tparam B the type of values associated with the keys
  */
 class FixedMap[A <% Ordered[A], B](initialSize: Int)
-    extends Map[A, B]
-    with MapLike[A, B, FixedMap[A, B]] {
+  extends Map[A, B]
+  with MapLike[A, B, FixedMap[A, B]] {
 
   private[collections] val array = new Array[(A, B)](initialSize)
   /** The current size of the map */
@@ -30,9 +30,9 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
 
   /** The capacity of the map */
   val capacity = initialSize
-  override def size = size0
+  override def size: Int = size0
 
-  override def empty = new FixedMap(array.length)
+  override def empty: FixedMap[A, B] = new FixedMap(array.length)
 
   def iterator: Iterator[(A, B)] = array.view.filter(_ != null).iterator
 
@@ -72,20 +72,22 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
   private[collections] def binarySearch(k: A): Either[Int, Int] = {
     @tailrec def recurse(low: Int, high: Int): Either[Int, Int] = {
       // if the first key is null, then insert at head.
-      if (array(0) == null) return Left(0)
+      if (array(0) == null) {
+        Left(0)
+      } else {
+        val mid = (low + ((high - low) / 2))
 
-      val mid = (low + ((high - low) / 2))
+        if (mid > array.length || low > high) return Left(math.min(array.length - 1, mid))
+        if (array(mid) == null) return Left(mid)
 
-      if (mid > array.length || low > high) return Left(math.min(array.length - 1, mid))
-      if (array(mid) == null) return Left(mid)
-
-      array(mid)._1 match {
-        case x if x > k =>
-          recurse(low, mid - 1)
-        case x if x == k =>
-          Right(mid)
-        case x if x < k =>
-          recurse(mid + 1, high)
+        array(mid)._1 match {
+          case x if x > k =>
+            recurse(low, mid - 1)
+          case x if x == k =>
+            Right(mid)
+          case x if x < k =>
+            recurse(mid + 1, high)
+        }
       }
     }
 
@@ -140,9 +142,12 @@ class FixedMap[A <% Ordered[A], B](initialSize: Int)
    */
   def indexOfKey(k: A): Either[Int, Int] = binarySearch(k)
 
-  /** @return the key at the specified index, if any */
+  /** @return the key-value pair at the specified index, if any */
+  def at(index: Int) : (A, B) = array(index)
 
-  def at(index: Int) = array(index)
+  /** @return true if the specified index is defined */
+  def isDefinedAt(index: Int) : Boolean = array(index) != null
+
   /**
    * Update the specified index with a new key value pair.
    */
@@ -182,5 +187,4 @@ object FixedMap {
   }
 
   def empty[A <% Ordered[A], B]: FixedMap[A, B] = new FixedMap(defaultSize)
-
 }
